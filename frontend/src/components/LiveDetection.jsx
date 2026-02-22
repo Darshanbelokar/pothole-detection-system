@@ -13,6 +13,7 @@ export default function LiveDetection({ onEvent }) {
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const wsFailuresRef = useRef(0);
+  const wsStabilityTimerRef = useRef(null);
   const locationRef = useRef({ lat: null, lng: null });
   const locationTimerRef = useRef(null);
 
@@ -91,17 +92,30 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const connectSocket = () => {
+    if (connectionMode !== 'ws') {
+      return;
+    }
+
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
 
+    if (wsStabilityTimerRef.current) {
+      clearTimeout(wsStabilityTimerRef.current);
+      wsStabilityTimerRef.current = null;
+    }
+
     const socket = new WebSocket(`${WS_BASE}/ws/realtime`);
 
     socket.onopen = () => {
-      wsFailuresRef.current = 0;
       setConnectionMode('ws');
       setStatus('Live detection running');
+
+      wsStabilityTimerRef.current = setTimeout(() => {
+        wsFailuresRef.current = 0;
+        wsStabilityTimerRef.current = null;
+      }, 8000);
     };
 
     socket.onmessage = (event) => {
@@ -129,6 +143,11 @@ export default function LiveDetection({ onEvent }) {
     };
 
     socket.onclose = () => {
+      if (wsStabilityTimerRef.current) {
+        clearTimeout(wsStabilityTimerRef.current);
+        wsStabilityTimerRef.current = null;
+      }
+
       if (streamRef.current) {
         wsFailuresRef.current += 1;
         if (wsFailuresRef.current >= 3) {
@@ -264,6 +283,11 @@ export default function LiveDetection({ onEvent }) {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+
+    if (wsStabilityTimerRef.current) {
+      clearTimeout(wsStabilityTimerRef.current);
+      wsStabilityTimerRef.current = null;
     }
 
     if (locationTimerRef.current) {
