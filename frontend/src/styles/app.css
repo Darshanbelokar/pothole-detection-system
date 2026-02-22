@@ -225,6 +225,19 @@ button:disabled {
   border: 1px solid #334155;
 }
 
+.camera-stage {
+  position: relative;
+  width: 100%;
+}
+
+.bbox-overlay {
+  position: absolute;
+  border: 3px solid #ef4444;
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
 .hidden-canvas {
   display: none;
 }

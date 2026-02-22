@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { WS_BASE } from '../services/api';
 
+const FRAME_WIDTH = 320;
+const FRAME_HEIGHT = 240;
+
 export default function LiveDetection({ onEvent }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -240,6 +243,26 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const cameraLabel = cameraMode === 'environment' ? 'Rear' : 'Front';
+  const hasBbox = Array.isArray(latest?.bbox) && latest.bbox.length === 4;
+
+  const getBboxStyle = () => {
+    if (!hasBbox) {
+      return null;
+    }
+
+    const [x1, y1, x2, y2] = latest.bbox;
+    const left = Math.max(0, (x1 / FRAME_WIDTH) * 100);
+    const top = Math.max(0, (y1 / FRAME_HEIGHT) * 100);
+    const width = Math.max(0, ((x2 - x1) / FRAME_WIDTH) * 100);
+    const height = Math.max(0, ((y2 - y1) / FRAME_HEIGHT) * 100);
+
+    return {
+      left: `${left}%`,
+      top: `${top}%`,
+      width: `${width}%`,
+      height: `${height}%`
+    };
+  };
 
   return (
     <section className="card">
@@ -253,7 +276,12 @@ export default function LiveDetection({ onEvent }) {
       </div>
       <p className="camera-hint">For phones: use Switch Camera to toggle front/rear lens.</p>
 
-      <video ref={videoRef} autoPlay muted playsInline className="camera-view" />
+      <div className="camera-stage">
+        <video ref={videoRef} autoPlay muted playsInline className="camera-view" />
+        {latest?.potholeDetected && hasBbox && (
+          <div className="bbox-overlay" style={getBboxStyle()} />
+        )}
+      </div>
       <canvas ref={canvasRef} className="hidden-canvas" />
       <p className={`status-pill ${statusClass}`}>{status}</p>
 
