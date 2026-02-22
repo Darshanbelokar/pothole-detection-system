@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { WS_BASE } from '../services/api';
 import { detectFrame } from '../services/api';
 
 const FRAME_WIDTH = 320;
@@ -10,17 +9,12 @@ export default function LiveDetection({ onEvent }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
-  const wsRef = useRef(null);
-  const reconnectTimerRef = useRef(null);
-  const wsFailuresRef = useRef(0);
-  const wsStabilityTimerRef = useRef(null);
   const locationRef = useRef({ lat: null, lng: null });
   const locationTimerRef = useRef(null);
 
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('Idle');
   const [latest, setLatest] = useState(null);
-  const [connectionMode, setConnectionMode] = useState('ws');
   const [cameraMode, setCameraMode] = useState('environment');
   const [videoDevices, setVideoDevices] = useState([]);
   const [activeDeviceIndex, setActiveDeviceIndex] = useState(0);
@@ -73,12 +67,6 @@ export default function LiveDetection({ onEvent }) {
 
     const { lat, lng } = locationRef.current;
 
-    if (connectionMode === 'ws' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const frameBase64 = canvas.toDataURL('image/jpeg', 0.7);
-      wsRef.current.send(JSON.stringify({ frameBase64, lat, lng }));
-      return;
-    }
-
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
     if (!blob) {
       return;
@@ -89,82 +77,6 @@ export default function LiveDetection({ onEvent }) {
     if (message.potholeDetected && typeof onEvent === 'function') {
       onEvent(message);
     }
-  };
-
-  const connectSocket = () => {
-    if (connectionMode !== 'ws') {
-      return;
-    }
-
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-
-    if (wsStabilityTimerRef.current) {
-      clearTimeout(wsStabilityTimerRef.current);
-      wsStabilityTimerRef.current = null;
-    }
-
-    const socket = new WebSocket(`${WS_BASE}/ws/realtime`);
-
-    socket.onopen = () => {
-      setConnectionMode('ws');
-      setStatus('Live detection running');
-
-      wsStabilityTimerRef.current = setTimeout(() => {
-        wsFailuresRef.current = 0;
-        wsStabilityTimerRef.current = null;
-      }, 8000);
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.status === 'connected') {
-          return;
-        }
-        if (message.error) {
-          setStatus(`Detection error: ${message.error}`);
-          return;
-        }
-
-        setLatest(message);
-        if (message.potholeDetected && typeof onEvent === 'function') {
-          onEvent(message);
-        }
-      } catch {
-        setStatus('Detection error: invalid server response');
-      }
-    };
-
-    socket.onerror = () => {
-      setStatus('WebSocket connection error');
-    };
-
-    socket.onclose = () => {
-      if (wsStabilityTimerRef.current) {
-        clearTimeout(wsStabilityTimerRef.current);
-        wsStabilityTimerRef.current = null;
-      }
-
-      if (streamRef.current) {
-        wsFailuresRef.current += 1;
-        if (wsFailuresRef.current >= 3) {
-          setConnectionMode('http');
-          setStatus('WebSocket unstable. Switched to HTTP live mode.');
-          return;
-        }
-
-        setStatus('WebSocket disconnected. Reconnecting...');
-        reconnectTimerRef.current = setTimeout(() => {
-          reconnectTimerRef.current = null;
-          connectSocket();
-        }, 2000);
-      }
-    };
-
-    wsRef.current = socket;
   };
 
   const loadVideoDevices = async () => {
@@ -229,12 +141,8 @@ export default function LiveDetection({ onEvent }) {
 
       await loadVideoDevices();
 
-      const socketState = wsRef.current?.readyState;
-      if (connectionMode === 'ws' && socketState !== WebSocket.OPEN && socketState !== WebSocket.CONNECTING) {
-        connectSocket();
-      }
       setRunning(true);
-      setStatus(connectionMode === 'ws' ? 'Connecting realtime socket...' : 'Running HTTP live detection...');
+      setStatus('Running HTTP live detection...');
 
       if (!timerRef.current) {
         timerRef.current = setInterval(async () => {
@@ -280,16 +188,6 @@ export default function LiveDetection({ onEvent }) {
       timerRef.current = null;
     }
 
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-
-    if (wsStabilityTimerRef.current) {
-      clearTimeout(wsStabilityTimerRef.current);
-      wsStabilityTimerRef.current = null;
-    }
-
     if (locationTimerRef.current) {
       clearInterval(locationTimerRef.current);
       locationTimerRef.current = null;
@@ -298,11 +196,6 @@ export default function LiveDetection({ onEvent }) {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-    }
-
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
     }
 
     setRunning(false);
