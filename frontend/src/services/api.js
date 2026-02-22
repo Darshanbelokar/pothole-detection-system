@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL + '/api';
+const API_BASE = 'https://pothole-detection-system-4.onrender.com/api';
 
 export async function checkHealth() {
   const response = await fetch(`${API_BASE}/health`);
