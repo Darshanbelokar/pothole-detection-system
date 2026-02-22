@@ -9,6 +9,7 @@ export default function LiveDetection({ onEvent }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
+  const inFlightRef = useRef(false);
   const locationRef = useRef({ lat: null, lng: null });
   const locationTimerRef = useRef(null);
 
@@ -53,6 +54,10 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const captureAndSend = async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -60,22 +65,28 @@ export default function LiveDetection({ onEvent }) {
       return;
     }
 
-    canvas.width = 320;
-    canvas.height = 240;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    inFlightRef.current = true;
 
-    const { lat, lng } = locationRef.current;
+    try {
+      canvas.width = 320;
+      canvas.height = 240;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
-    if (!blob) {
-      return;
-    }
+      const { lat, lng } = locationRef.current;
 
-    const message = await detectFrame(blob, lat, lng);
-    setLatest(message);
-    if (message.potholeDetected && typeof onEvent === 'function') {
-      onEvent(message);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
+      if (!blob) {
+        return;
+      }
+
+      const message = await detectFrame(blob, lat, lng);
+      setLatest(message);
+      if (message.potholeDetected && typeof onEvent === 'function') {
+        onEvent(message);
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   };
 
