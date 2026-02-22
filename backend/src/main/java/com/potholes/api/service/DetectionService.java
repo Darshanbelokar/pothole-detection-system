@@ -1,25 +1,25 @@
 package com.potholes.api.service;
 
-import com.potholes.api.entity.DetectionRecord;
 import com.potholes.api.model.DetectionEvent;
 import com.potholes.api.model.ModelFrameResponse;
 import com.potholes.api.model.ModelVideoDetection;
 import com.potholes.api.model.ModelVideoResponse;
-import com.potholes.api.repository.DetectionRecordRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class DetectionService {
 
     private final ModelInferenceClient modelInferenceClient;
-    private final DetectionRecordRepository detectionRecordRepository;
+    private final List<DetectionEvent> recentEvents = new CopyOnWriteArrayList<>();
 
     @Value("${app.model.enabled:true}")
     private boolean modelEnabled;
@@ -30,9 +30,8 @@ public class DetectionService {
     @Value("${app.model.fallback-threshold:0.55}")
     private double fallbackThreshold;
 
-    public DetectionService(ModelInferenceClient modelInferenceClient, DetectionRecordRepository detectionRecordRepository) {
+    public DetectionService(ModelInferenceClient modelInferenceClient) {
         this.modelInferenceClient = modelInferenceClient;
-        this.detectionRecordRepository = detectionRecordRepository;
     }
 
     public DetectionEvent analyzeFrame(MultipartFile frame, Double latitude, Double longitude) throws IOException {
@@ -77,7 +76,7 @@ public class DetectionService {
                 longitude
         );
 
-            detectionRecordRepository.save(toRecord(event));
+        saveEvent(event);
 
         return event;
     }
@@ -100,11 +99,11 @@ public class DetectionService {
                             d.getConfidence(),
                             deriveSeverity(d.getConfidence()),
                             normalizeBbox(d.getBbox()),
-                                null,
-                                null
-                            );
-                            result.add(event);
-                            detectionRecordRepository.save(toRecord(event));
+                            null,
+                            null
+                    );
+                    result.add(event);
+                    saveEvent(event);
                     i++;
                 }
                 return result;
@@ -137,22 +136,18 @@ public class DetectionService {
             ));
         }
 
-        for (DetectionEvent event : result) {
-            detectionRecordRepository.save(toRecord(event));
-        }
+        result.forEach(this::saveEvent);
 
         return result;
     }
 
     public List<DetectionEvent> getHeatmapEvents() {
-        List<DetectionRecord> rows = detectionRecordRepository
-                .findTop2000ByPotholeDetectedTrueAndLatitudeIsNotNullAndLongitudeIsNotNullOrderByTimestampDesc();
-
-        List<DetectionEvent> response = new ArrayList<>();
-        for (DetectionRecord row : rows) {
-            response.add(toEvent(row));
-        }
-        return response;
+        return recentEvents.stream()
+                .filter(DetectionEvent::isPotholeDetected)
+                .filter(event -> event.getLatitude() != null && event.getLongitude() != null)
+                .sorted(Comparator.comparingLong(DetectionEvent::getTimestamp).reversed())
+                .limit(2000)
+                .toList();
     }
 
     private double scoreFromBytes(byte[] bytes) {
@@ -187,41 +182,11 @@ public class DetectionService {
         return bbox;
     }
 
-    private DetectionRecord toRecord(DetectionEvent event) {
-        DetectionRecord record = new DetectionRecord();
-        record.setExternalId(event.getId());
-        record.setTimestamp(event.getTimestamp());
-        record.setPotholeDetected(event.isPotholeDetected());
-        record.setConfidence(event.getConfidence());
-        record.setSeverity(event.getSeverity());
-        record.setLatitude(event.getLatitude());
-        record.setLongitude(event.getLongitude());
-
-        int[] bbox = event.getBbox();
-        if (bbox != null && bbox.length == 4) {
-            record.setBboxX1(bbox[0]);
-            record.setBboxY1(bbox[1]);
-            record.setBboxX2(bbox[2]);
-            record.setBboxY2(bbox[3]);
+    private void saveEvent(DetectionEvent event) {
+        recentEvents.add(event);
+        int maxSize = 5000;
+        if (recentEvents.size() > maxSize) {
+            recentEvents.remove(0);
         }
-        return record;
-    }
-
-    private DetectionEvent toEvent(DetectionRecord row) {
-        int[] bbox = null;
-        if (row.getBboxX1() != null && row.getBboxY1() != null && row.getBboxX2() != null && row.getBboxY2() != null) {
-            bbox = new int[]{row.getBboxX1(), row.getBboxY1(), row.getBboxX2(), row.getBboxY2()};
-        }
-
-        return new DetectionEvent(
-                row.getExternalId(),
-                row.getTimestamp(),
-                row.isPotholeDetected(),
-                row.getConfidence(),
-                row.getSeverity(),
-                bbox,
-                row.getLatitude(),
-                row.getLongitude()
-        );
     }
 }
