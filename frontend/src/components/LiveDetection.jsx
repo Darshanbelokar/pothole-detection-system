@@ -7,6 +7,7 @@ export default function LiveDetection({ onEvent }) {
   const streamRef = useRef(null);
   const timerRef = useRef(null);
   const wsRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
 
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('Idle');
@@ -65,6 +66,11 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const connectSocket = () => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     const socket = new WebSocket(`${WS_BASE}/ws/realtime`);
 
     socket.onopen = () => {
@@ -97,7 +103,11 @@ export default function LiveDetection({ onEvent }) {
 
     socket.onclose = () => {
       if (streamRef.current) {
-        setStatus('WebSocket disconnected');
+        setStatus('WebSocket disconnected. Reconnecting...');
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null;
+          connectSocket();
+        }, 2000);
       }
     };
 
@@ -159,7 +169,8 @@ export default function LiveDetection({ onEvent }) {
 
       await loadVideoDevices();
 
-      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+      const socketState = wsRef.current?.readyState;
+      if (socketState !== WebSocket.OPEN && socketState !== WebSocket.CONNECTING) {
         connectSocket();
       }
       setRunning(true);
@@ -207,6 +218,11 @@ export default function LiveDetection({ onEvent }) {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
 
     if (streamRef.current) {
