@@ -208,6 +208,13 @@ button:disabled {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.camera-hint {
+  margin: -4px 0 10px;
+  color: #475569;
+  font-size: 13px;
 }
 
 .camera-view {

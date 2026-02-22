@@ -10,6 +10,10 @@ export default function LiveDetection({ onEvent }) {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('Idle');
   const [latest, setLatest] = useState(null);
+  const [cameraMode, setCameraMode] = useState('environment');
+  const [videoDevices, setVideoDevices] = useState([]);
+  const [activeDeviceIndex, setActiveDeviceIndex] = useState(0);
+  const [switching, setSwitching] = useState(false);
 
   const statusClass = running ? 'live' : 'stopped';
 
@@ -100,32 +104,102 @@ export default function LiveDetection({ onEvent }) {
     wsRef.current = socket;
   };
 
-  const start = async () => {
+  const loadVideoDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((device) => device.kind === 'videoinput');
+      setVideoDevices(inputs);
+
+      if (streamRef.current && inputs.length > 0) {
+        const currentTrack = streamRef.current.getVideoTracks()[0];
+        const currentId = currentTrack?.getSettings()?.deviceId;
+        const index = inputs.findIndex((device) => device.deviceId === currentId);
+        if (index >= 0) {
+          setActiveDeviceIndex(index);
+        }
+      }
+    } catch {
+      setVideoDevices([]);
+    }
+  };
+
+  const start = async (options = {}) => {
+    const { mode = cameraMode, deviceId } = options;
+
     try {
       setStatus('Starting camera...');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false
-      });
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      let stream;
+      if (deviceId) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId } },
+          audio: false
+        });
+      } else {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: mode } },
+            audio: false
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        }
+      }
 
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
 
-      connectSocket();
+      await loadVideoDevices();
+
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        connectSocket();
+      }
       setRunning(true);
       setStatus('Connecting realtime socket...');
 
-      timerRef.current = setInterval(async () => {
-        try {
-          await captureAndSend();
-        } catch (error) {
-          setStatus(`Detection error: ${error.message}`);
-        }
-      }, 1200);
+      if (!timerRef.current) {
+        timerRef.current = setInterval(async () => {
+          try {
+            await captureAndSend();
+          } catch (error) {
+            setStatus(`Detection error: ${error.message}`);
+          }
+        }, 1200);
+      }
     } catch (error) {
       setStatus(`Cannot open camera: ${error.message}`);
+      setRunning(false);
+    }
+  };
+
+  const switchCamera = async () => {
+    if (switching) {
+      return;
+    }
+
+    setSwitching(true);
+    try {
+      if (videoDevices.length > 1) {
+        const nextIndex = (activeDeviceIndex + 1) % videoDevices.length;
+        setActiveDeviceIndex(nextIndex);
+        await start({ deviceId: videoDevices[nextIndex].deviceId });
+      } else {
+        const nextMode = cameraMode === 'environment' ? 'user' : 'environment';
+        setCameraMode(nextMode);
+        if (running) {
+          await start({ mode: nextMode });
+        }
+      }
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -149,13 +223,19 @@ export default function LiveDetection({ onEvent }) {
     setStatus('Stopped');
   };
 
+  const cameraLabel = cameraMode === 'environment' ? 'Rear' : 'Front';
+
   return (
     <section className="card">
       <h2>Live Dashcam Detection</h2>
       <div className="button-row">
         <button type="button" onClick={start} disabled={running}>Start Live</button>
         <button type="button" onClick={stop} disabled={!running}>Stop</button>
+        <button type="button" onClick={switchCamera} disabled={switching || (!running && videoDevices.length > 1)}>
+          {switching ? 'Switching...' : `Switch Camera (${cameraLabel})`}
+        </button>
       </div>
+      <p className="camera-hint">For phones: use Switch Camera to toggle front/rear lens.</p>
 
       <video ref={videoRef} autoPlay muted playsInline className="camera-view" />
       <canvas ref={canvasRef} className="hidden-canvas" />
