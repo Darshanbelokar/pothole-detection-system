@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL + '/api';
 
 export async function checkHealth() {
   const response = await fetch(`${API_BASE}/health`);
@@ -28,6 +28,7 @@ export async function uploadVideo(videoFile) {
 export async function detectFrame(blob, lat, lng) {
   const formData = new FormData();
   formData.append('frame', blob, 'frame.jpg');
+
   if (typeof lat === 'number') {
     formData.append('lat', lat);
   }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import HeatmapPanel from './components/HeatmapPanel';
 import LiveDetection from './components/LiveDetection';
 import VideoUpload from './components/VideoUpload';
-import { checkHealth, fetchHeatmapEvents } from './services/api';
+fetch(`${import.meta.env.VITE_API_URL}/api/health`)
 
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend...');
