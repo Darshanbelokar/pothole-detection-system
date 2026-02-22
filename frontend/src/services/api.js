@@ -1,4 +1,8 @@
-const API_BASE = 'https://pothole-detection-system-4.onrender.com/api';
+const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-4.onrender.com';
+const BACKEND_BASE = import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE;
+
+export const API_BASE = `${BACKEND_BASE}/api`;
+export const WS_BASE = BACKEND_BASE.replace(/^http/, 'ws');
 
 export async function checkHealth() {
   const response = await fetch(`${API_BASE}/health`);

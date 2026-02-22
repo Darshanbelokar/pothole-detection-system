@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { WS_BASE } from '../services/api';
 
 export default function LiveDetection({ onEvent }) {
   const videoRef = useRef(null);
@@ -64,8 +65,7 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const connectSocket = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/realtime`);
+    const socket = new WebSocket(`${WS_BASE}/ws/realtime`);
 
     socket.onopen = () => {
       setStatus('Live detection running');
