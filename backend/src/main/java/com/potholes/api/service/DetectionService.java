@@ -42,6 +42,7 @@ public class DetectionService {
         double score;
         boolean detected;
         int[] bbox;
+        int[][] bboxes;
 
         if (modelEnabled) {
             try {
@@ -49,6 +50,7 @@ public class DetectionService {
                 score = prediction.getConfidence();
                 detected = prediction.isPotholeDetected();
                 bbox = normalizeBbox(prediction.getBbox());
+                bboxes = normalizeBboxes(prediction.getBboxes(), bbox);
             } catch (RuntimeException ex) {
                 if (modelRequired) {
                     throw ex;
@@ -56,11 +58,13 @@ public class DetectionService {
                 score = scoreFromBytes(bytes);
                 detected = score >= fallbackThreshold;
                 bbox = null;
+                bboxes = null;
             }
         } else {
             score = scoreFromBytes(bytes);
             detected = score >= fallbackThreshold;
             bbox = null;
+            bboxes = null;
         }
 
         String severity = deriveSeverity(score);
@@ -72,6 +76,7 @@ public class DetectionService {
                 score,
                 severity,
                 bbox,
+                bboxes,
                 latitude,
                 longitude
         );
@@ -99,6 +104,7 @@ public class DetectionService {
                             d.getConfidence(),
                             deriveSeverity(d.getConfidence()),
                             normalizeBbox(d.getBbox()),
+                            normalizeBboxes(null, normalizeBbox(d.getBbox())),
                             null,
                             null
                     );
@@ -130,6 +136,7 @@ public class DetectionService {
                     detected,
                     confidence,
                     deriveSeverity(confidence),
+                    null,
                     null,
                     null,
                     null
@@ -180,6 +187,27 @@ public class DetectionService {
             return null;
         }
         return bbox;
+    }
+
+    private int[][] normalizeBboxes(int[][] bboxes, int[] singleBbox) {
+        if (bboxes != null && bboxes.length > 0) {
+            List<int[]> valid = new ArrayList<>();
+            for (int[] bbox : bboxes) {
+                int[] normalized = normalizeBbox(bbox);
+                if (normalized != null) {
+                    valid.add(normalized);
+                }
+            }
+            if (!valid.isEmpty()) {
+                return valid.toArray(new int[0][]);
+            }
+        }
+
+        if (singleBbox != null) {
+            return new int[][]{singleBbox};
+        }
+
+        return null;
     }
 
     private void saveEvent(DetectionEvent event) {

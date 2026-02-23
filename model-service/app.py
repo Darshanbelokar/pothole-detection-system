@@ -36,7 +36,7 @@ def infer_image_bytes(image_bytes: bytes):
     image_np = np.frombuffer(image_bytes, dtype=np.uint8)
     frame = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
     if frame is None:
-        return False, 0.0, None
+        return False, 0.0, None, []
 
     result = model.predict(
         source=frame,
@@ -48,7 +48,16 @@ def infer_image_bytes(image_bytes: bytes):
     boxes = result.boxes
 
     if boxes is None or len(boxes) == 0:
-        return False, 0.0, None
+        return False, 0.0, None, []
+
+    all_bboxes = []
+    for box in boxes.xyxy.tolist():
+        all_bboxes.append([
+            int(box[0]),
+            int(box[1]),
+            int(box[2]),
+            int(box[3]),
+        ])
 
     conf_tensor = boxes.conf
     best_index = int(conf_tensor.argmax().item())
@@ -56,14 +65,14 @@ def infer_image_bytes(image_bytes: bytes):
     best_box = boxes.xyxy[best_index].tolist()
     bbox = [int(best_box[0]), int(best_box[1]), int(best_box[2]), int(best_box[3])]
 
-    return True, best_conf, bbox
+    return True, best_conf, bbox, all_bboxes
 
 
 @app.post("/predict/frame")
 async def predict_frame(frame: UploadFile = File(...)):
     started = time.time()
     image_bytes = await frame.read()
-    detected, confidence, bbox = infer_image_bytes(image_bytes)
+    detected, confidence, bbox, bboxes = infer_image_bytes(image_bytes)
     elapsed_ms = int((time.time() - started) * 1000)
 
     logger.info(
@@ -72,14 +81,15 @@ async def predict_frame(frame: UploadFile = File(...)):
         len(image_bytes),
         detected,
         confidence,
-        bbox,
+        bboxes,
         elapsed_ms,
     )
 
     return {
         "potholeDetected": detected,
         "confidence": round(confidence, 4),
-        "bbox": bbox
+        "bbox": bbox,
+        "bboxes": bboxes
     }
 
 

@@ -97,6 +97,7 @@ export async function detectFrame(blob, lat, lng) {
       potholeDetected: directMessage.potholeDetected ?? backendMessage.potholeDetected,
       confidence: directMessage.confidence ?? backendMessage.confidence,
       bbox: directMessage.bbox,
+      bboxes: Array.isArray(directMessage.bboxes) ? directMessage.bboxes : backendMessage.bboxes,
       detectionSource: 'model-direct'
     };
   } catch {

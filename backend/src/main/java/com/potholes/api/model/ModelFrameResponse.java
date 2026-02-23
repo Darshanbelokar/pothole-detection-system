@@ -7,6 +7,7 @@ public class ModelFrameResponse {
     private boolean potholeDetected;
     private double confidence;
     private int[] bbox;
+    private int[][] bboxes;
 
     public boolean isPotholeDetected() {
         return potholeDetected;
@@ -30,5 +31,13 @@ public class ModelFrameResponse {
 
     public void setBbox(int[] bbox) {
         this.bbox = bbox;
+    }
+
+    public int[][] getBboxes() {
+        return bboxes;
+    }
+
+    public void setBboxes(int[][] bboxes) {
+        this.bboxes = bboxes;
     }
 }

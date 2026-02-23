@@ -158,6 +158,28 @@ export default function LiveDetection({ onEvent }) {
     return [x1, y1, x2, y2];
   };
 
+  const normalizeBboxes = (detection) => {
+    const candidates = [];
+
+    if (Array.isArray(detection?.bboxes)) {
+      detection.bboxes.forEach((candidate) => {
+        const normalized = normalizeBbox(candidate);
+        if (normalized) {
+          candidates.push(normalized);
+        }
+      });
+    }
+
+    if (candidates.length === 0 && detection?.bbox) {
+      const single = normalizeBbox(detection.bbox);
+      if (single) {
+        candidates.push(single);
+      }
+    }
+
+    return candidates;
+  };
+
   const drawAnnotatedFrame = (imageData, detection) => {
     const displayCanvas = displayCanvasRef.current;
     if (!displayCanvas) return;
@@ -169,20 +191,9 @@ export default function LiveDetection({ onEvent }) {
     // Draw the base frame
     ctx.putImageData(imageData, 0, 0);
 
-    // Draw bounding box if pothole detected
-    if (detection && detection.bbox) {
-      const normalized = normalizeBbox(detection.bbox);
-      if (!normalized) {
-        return;
-      }
-
-      const [x1, y1, x2, y2] = normalized;
-
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-
-      const confidenceValue = Number(detection.confidence ?? 0);
+    const normalizedBoxes = normalizeBboxes(detection);
+    if (normalizedBoxes.length > 0) {
+      const confidenceValue = Number(detection?.confidence ?? 0);
       const label = `Pothole ${(confidenceValue * 100).toFixed(1)}%`;
       const fontSize = 16;
       ctx.font = `bold ${fontSize}px Arial`;
@@ -190,14 +201,22 @@ export default function LiveDetection({ onEvent }) {
       const textWidth = textMetrics.width + 8;
       const textHeight = fontSize + 6;
 
-      const labelX = x1;
-      const labelY = y1 > textHeight + 4 ? y1 - textHeight - 4 : y2 + 4;
+      normalizedBoxes.forEach(([x1, y1, x2, y2], index) => {
+        ctx.strokeStyle = '#FF0000';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-      ctx.fillStyle = '#FF0000';
-      ctx.fillRect(labelX - 2, labelY - textHeight + 4, textWidth, textHeight);
+        if (index === 0) {
+          const labelX = x1;
+          const labelY = y1 > textHeight + 4 ? y1 - textHeight - 4 : y2 + 4;
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(label, labelX + 2, labelY - 2);
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(labelX - 2, labelY - textHeight + 4, textWidth, textHeight);
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillText(label, labelX + 2, labelY - 2);
+        }
+      });
     }
   };
 
@@ -336,27 +355,8 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const cameraLabel = cameraMode === 'environment' ? 'Rear' : 'Front';
-  const latestNormalizedBbox = normalizeBbox(latest?.bbox);
-  const hasLatestBbox = Array.isArray(latestNormalizedBbox);
-
-  const getLatestBboxStyle = () => {
-    if (!hasLatestBbox) {
-      return null;
-    }
-
-    const [x1, y1, x2, y2] = latestNormalizedBbox;
-    const left = Math.max(0, (x1 / FRAME_WIDTH) * 100);
-    const top = Math.max(0, (y1 / FRAME_HEIGHT) * 100);
-    const width = Math.max(0, ((x2 - x1) / FRAME_WIDTH) * 100);
-    const height = Math.max(0, ((y2 - y1) / FRAME_HEIGHT) * 100);
-
-    return {
-      left: `${left}%`,
-      top: `${top}%`,
-      width: `${width}%`,
-      height: `${height}%`
-    };
-  };
+  const latestNormalizedBboxes = normalizeBboxes(latest);
+  const hasLatestBbox = latestNormalizedBboxes.length > 0;
 
   return (
     <section className="card">
@@ -384,9 +384,20 @@ export default function LiveDetection({ onEvent }) {
           <div className="feed-label">🎯 Detection Output (with Bounding Boxes)</div>
           <div className="camera-stage">
             <canvas ref={displayCanvasRef} className="camera-view" />
-            {hasLatestBbox && (
-              <div className="bbox-overlay" style={getLatestBboxStyle()} />
-            )}
+            {hasLatestBbox && latestNormalizedBboxes.map((bbox, index) => {
+              const [x1, y1, x2, y2] = bbox;
+              const left = Math.max(0, (x1 / FRAME_WIDTH) * 100);
+              const top = Math.max(0, (y1 / FRAME_HEIGHT) * 100);
+              const width = Math.max(0, ((x2 - x1) / FRAME_WIDTH) * 100);
+              const height = Math.max(0, ((y2 - y1) / FRAME_HEIGHT) * 100);
+              return (
+                <div
+                  key={`bbox-${index}`}
+                  className="bbox-overlay"
+                  style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
+                />
+              );
+            })}
             {!running && (
               <div className="no-feed-overlay">
                 <p>Start live detection to see predicted objects</p>
@@ -411,6 +422,7 @@ export default function LiveDetection({ onEvent }) {
           <p><strong>Lat/Lng:</strong> {latest.latitude ?? '-'}, {latest.longitude ?? '-'}</p>
           <p><strong>Source:</strong> {latest.detectionSource ?? 'backend'}</p>
           <p><strong>BBox:</strong> {latest.bbox ? JSON.stringify(latest.bbox) : 'null'}</p>
+          <p><strong>BBoxes:</strong> {Array.isArray(latest.bboxes) ? latest.bboxes.length : (latest.bbox ? 1 : 0)}</p>
         </div>
       )}
     </section>
