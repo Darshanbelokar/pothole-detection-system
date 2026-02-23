@@ -6,12 +6,14 @@ const FRAME_HEIGHT = 480;
 
 export default function LiveDetection({ onEvent }) {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const captureCanvasRef = useRef(null);
+  const displayCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
   const inFlightRef = useRef(false);
   const locationRef = useRef({ lat: null, lng: null });
   const locationTimerRef = useRef(null);
+  const frameDataRef = useRef(null);
 
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('Idle');
@@ -59,7 +61,7 @@ export default function LiveDetection({ onEvent }) {
     }
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
+    const canvas = captureCanvasRef.current;
 
     if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
       return;
@@ -73,6 +75,10 @@ export default function LiveDetection({ onEvent }) {
       const context = canvas.getContext('2d');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // Store frame data for display canvas
+      const imageData = context.getImageData(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+      frameDataRef.current = imageData;
+
       const { lat, lng } = locationRef.current;
 
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
@@ -82,11 +88,84 @@ export default function LiveDetection({ onEvent }) {
 
       const message = await detectFrame(blob, lat, lng);
       setLatest(message);
+      
+      // Draw annotated frame on display canvas
+      drawAnnotatedFrame(imageData, message);
+      
       if (message.potholeDetected && typeof onEvent === 'function') {
         onEvent(message);
       }
     } finally {
       inFlightRef.current = false;
+    }
+  };
+
+  const drawAnnotatedFrame = (imageData, detection) => {
+    const displayCanvas = displayCanvasRef.current;
+    if (!displayCanvas) return;
+
+    const ctx = displayCanvas.getContext('2d');
+    displayCanvas.width = FRAME_WIDTH;
+    displayCanvas.height = FRAME_HEIGHT;
+
+    // Draw the base frame
+    ctx.putImageData(imageData, 0, 0);
+
+    // Draw bounding box if pothole detected
+    if (detection && detection.bbox) {
+      const bbox = detection.bbox;
+      
+      // Handle different bbox formats
+      let x1, y1, x2, y2;
+      if (Array.isArray(bbox) && bbox.length === 4) {
+        [x1, y1, x2, y2] = bbox;
+      } else if (typeof bbox === 'object') {
+        if (bbox.x1 !== undefined && bbox.y1 !== undefined) {
+          x1 = bbox.x1;
+          y1 = bbox.y1;
+          x2 = bbox.x2;
+          y2 = bbox.y2;
+        } else if (bbox.x !== undefined && bbox.y !== undefined) {
+          x1 = bbox.x;
+          y1 = bbox.y;
+          x2 = bbox.x + bbox.w;
+          y2 = bbox.y + bbox.h;
+        }
+      }
+
+      if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
+        // Validate coordinates
+        x1 = Math.max(0, Math.min(FRAME_WIDTH, x1));
+        y1 = Math.max(0, Math.min(FRAME_HEIGHT, y1));
+        x2 = Math.max(0, Math.min(FRAME_WIDTH, x2));
+        y2 = Math.max(0, Math.min(FRAME_HEIGHT, y2));
+
+        if (x2 > x1 && y2 > y1) {
+          // Draw red bounding box
+          ctx.strokeStyle = '#FF0000';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+          // Draw label background
+          const label = `Pothole ${(detection.confidence * 100).toFixed(1)}%`;
+          const fontSize = 16;
+          ctx.font = `bold ${fontSize}px Arial`;
+          const textMetrics = ctx.measureText(label);
+          const textWidth = textMetrics.width + 8;
+          const textHeight = fontSize + 6;
+
+          const labelX = x1;
+          const labelY = y1 > textHeight + 4 ? y1 - textHeight - 4 : y2 + 4;
+
+          // Draw label background
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(labelX - 2, labelY - textHeight + 4, textWidth, textHeight);
+
+          // Draw label text
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillText(label, labelX + 2, labelY - 2);
+        }
+      }
     }
   };
 
@@ -225,80 +304,6 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const cameraLabel = cameraMode === 'environment' ? 'Rear' : 'Front';
-  const normalizeBbox = () => {
-    if (!latest?.bbox) {
-      return null;
-    }
-
-    let rawBbox = latest.bbox;
-    if (!Array.isArray(rawBbox) && typeof rawBbox === 'object') {
-      if (['x1', 'y1', 'x2', 'y2'].every((key) => key in rawBbox)) {
-        rawBbox = [rawBbox.x1, rawBbox.y1, rawBbox.x2, rawBbox.y2];
-      } else if (['x', 'y', 'w', 'h'].every((key) => key in rawBbox)) {
-        rawBbox = [rawBbox.x, rawBbox.y, rawBbox.w, rawBbox.h];
-      }
-    }
-
-    if (!Array.isArray(rawBbox) || rawBbox.length !== 4) {
-      return null;
-    }
-
-    let [a, b, c, d] = rawBbox.map((value) => Number(value));
-    if ([a, b, c, d].some((value) => Number.isNaN(value))) {
-      return null;
-    }
-
-    const maybeNormalized = [a, b, c, d].every((value) => value >= 0 && value <= 1);
-    if (maybeNormalized) {
-      a *= FRAME_WIDTH;
-      b *= FRAME_HEIGHT;
-      c *= FRAME_WIDTH;
-      d *= FRAME_HEIGHT;
-    }
-
-    let x1 = a;
-    let y1 = b;
-    let x2 = c;
-    let y2 = d;
-
-    if (x2 <= x1 || y2 <= y1) {
-      x2 = x1 + c;
-      y2 = y1 + d;
-    }
-
-    x1 = Math.max(0, Math.min(FRAME_WIDTH, x1));
-    y1 = Math.max(0, Math.min(FRAME_HEIGHT, y1));
-    x2 = Math.max(0, Math.min(FRAME_WIDTH, x2));
-    y2 = Math.max(0, Math.min(FRAME_HEIGHT, y2));
-
-    if (x2 <= x1 || y2 <= y1) {
-      return null;
-    }
-
-    return [x1, y1, x2, y2];
-  };
-
-  const normalizedBbox = normalizeBbox();
-  const hasBbox = Array.isArray(normalizedBbox);
-
-  const getBboxStyle = () => {
-    if (!hasBbox) {
-      return null;
-    }
-
-    const [x1, y1, x2, y2] = normalizedBbox;
-    const left = Math.max(0, (x1 / FRAME_WIDTH) * 100);
-    const top = Math.max(0, (y1 / FRAME_HEIGHT) * 100);
-    const width = Math.max(0, ((x2 - x1) / FRAME_WIDTH) * 100);
-    const height = Math.max(0, ((y2 - y1) / FRAME_HEIGHT) * 100);
-
-    return {
-      left: `${left}%`,
-      top: `${top}%`,
-      width: `${width}%`,
-      height: `${height}%`
-    };
-  };
 
   return (
     <section className="card">
@@ -312,13 +317,30 @@ export default function LiveDetection({ onEvent }) {
       </div>
       <p className="camera-hint">For phones: use Switch Camera to toggle front/rear lens.</p>
 
-      <div className="camera-stage">
-        <video ref={videoRef} autoPlay muted playsInline className="camera-view" />
-        {hasBbox && (
-          <div className="bbox-overlay" style={getBboxStyle()} />
-        )}
+      <div className="split-view-container">
+        {/* Left Panel: Raw Camera Feed */}
+        <div className="feed-panel">
+          <div className="feed-label">📹 Raw Camera Feed</div>
+          <div className="camera-stage">
+            <video ref={videoRef} autoPlay muted playsInline className="camera-view" />
+          </div>
+        </div>
+
+        {/* Right Panel: Annotated Detection Output */}
+        <div className="feed-panel">
+          <div className="feed-label">🎯 Detection Output (with Bounding Boxes)</div>
+          <div className="camera-stage">
+            <canvas ref={displayCanvasRef} className="camera-view" />
+            {!running && (
+              <div className="no-feed-overlay">
+                <p>Start live detection to see predicted objects</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <canvas ref={canvasRef} className="hidden-canvas" />
+
+      <canvas ref={captureCanvasRef} className="hidden-canvas" />
       <p className={`status-pill ${statusClass}`}>{status}</p>
 
       {latest && (

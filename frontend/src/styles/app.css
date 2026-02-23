@@ -217,6 +217,27 @@ button:disabled {
   font-size: 13px;
 }
 
+.split-view-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.feed-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feed-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .camera-view {
   width: 100%;
   max-height: 260px;
@@ -224,6 +245,27 @@ button:disabled {
   background: #0f172a;
   border: 1px solid #334155;
   display: block;
+}
+
+.no-feed-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 12px;
+  color: #cbd5e1;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.no-feed-overlay p {
+  margin: 0;
 }
 
 .camera-stage {
@@ -361,5 +403,9 @@ button:disabled {
   .app-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .split-view-container {
+    grid-template-columns: 1fr;
   }
 }
