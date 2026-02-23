@@ -100,6 +100,64 @@ export default function LiveDetection({ onEvent }) {
     }
   };
 
+  const normalizeBbox = (bbox) => {
+    if (!bbox) {
+      return null;
+    }
+
+    let x1;
+    let y1;
+    let x2;
+    let y2;
+
+    if (Array.isArray(bbox) && bbox.length === 4) {
+      [x1, y1, x2, y2] = bbox.map((value) => Number(value));
+      if ([x1, y1, x2, y2].some((value) => Number.isNaN(value))) {
+        return null;
+      }
+
+      const looksNormalized = [x1, y1, x2, y2].every((value) => value >= 0 && value <= 1);
+      if (looksNormalized) {
+        x1 *= FRAME_WIDTH;
+        y1 *= FRAME_HEIGHT;
+        x2 *= FRAME_WIDTH;
+        y2 *= FRAME_HEIGHT;
+      }
+
+      if (x2 <= x1 || y2 <= y1) {
+        x2 = x1 + x2;
+        y2 = y1 + y2;
+      }
+    } else if (typeof bbox === 'object') {
+      if (bbox.x1 !== undefined && bbox.y1 !== undefined && bbox.x2 !== undefined && bbox.y2 !== undefined) {
+        x1 = Number(bbox.x1);
+        y1 = Number(bbox.y1);
+        x2 = Number(bbox.x2);
+        y2 = Number(bbox.y2);
+      } else if (bbox.x !== undefined && bbox.y !== undefined && bbox.w !== undefined && bbox.h !== undefined) {
+        x1 = Number(bbox.x);
+        y1 = Number(bbox.y);
+        x2 = x1 + Number(bbox.w);
+        y2 = y1 + Number(bbox.h);
+      }
+    }
+
+    if ([x1, y1, x2, y2].some((value) => value === undefined || Number.isNaN(value))) {
+      return null;
+    }
+
+    x1 = Math.max(0, Math.min(FRAME_WIDTH, x1));
+    y1 = Math.max(0, Math.min(FRAME_HEIGHT, y1));
+    x2 = Math.max(0, Math.min(FRAME_WIDTH, x2));
+    y2 = Math.max(0, Math.min(FRAME_HEIGHT, y2));
+
+    if (x2 <= x1 || y2 <= y1) {
+      return null;
+    }
+
+    return [x1, y1, x2, y2];
+  };
+
   const drawAnnotatedFrame = (imageData, detection) => {
     const displayCanvas = displayCanvasRef.current;
     if (!displayCanvas) return;
@@ -113,59 +171,33 @@ export default function LiveDetection({ onEvent }) {
 
     // Draw bounding box if pothole detected
     if (detection && detection.bbox) {
-      const bbox = detection.bbox;
-      
-      // Handle different bbox formats
-      let x1, y1, x2, y2;
-      if (Array.isArray(bbox) && bbox.length === 4) {
-        [x1, y1, x2, y2] = bbox;
-      } else if (typeof bbox === 'object') {
-        if (bbox.x1 !== undefined && bbox.y1 !== undefined) {
-          x1 = bbox.x1;
-          y1 = bbox.y1;
-          x2 = bbox.x2;
-          y2 = bbox.y2;
-        } else if (bbox.x !== undefined && bbox.y !== undefined) {
-          x1 = bbox.x;
-          y1 = bbox.y;
-          x2 = bbox.x + bbox.w;
-          y2 = bbox.y + bbox.h;
-        }
+      const normalized = normalizeBbox(detection.bbox);
+      if (!normalized) {
+        return;
       }
 
-      if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
-        // Validate coordinates
-        x1 = Math.max(0, Math.min(FRAME_WIDTH, x1));
-        y1 = Math.max(0, Math.min(FRAME_HEIGHT, y1));
-        x2 = Math.max(0, Math.min(FRAME_WIDTH, x2));
-        y2 = Math.max(0, Math.min(FRAME_HEIGHT, y2));
+      const [x1, y1, x2, y2] = normalized;
 
-        if (x2 > x1 && y2 > y1) {
-          // Draw red bounding box
-          ctx.strokeStyle = '#FF0000';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.strokeStyle = '#FF0000';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-          // Draw label background
-          const label = `Pothole ${(detection.confidence * 100).toFixed(1)}%`;
-          const fontSize = 16;
-          ctx.font = `bold ${fontSize}px Arial`;
-          const textMetrics = ctx.measureText(label);
-          const textWidth = textMetrics.width + 8;
-          const textHeight = fontSize + 6;
+      const confidenceValue = Number(detection.confidence ?? 0);
+      const label = `Pothole ${(confidenceValue * 100).toFixed(1)}%`;
+      const fontSize = 16;
+      ctx.font = `bold ${fontSize}px Arial`;
+      const textMetrics = ctx.measureText(label);
+      const textWidth = textMetrics.width + 8;
+      const textHeight = fontSize + 6;
 
-          const labelX = x1;
-          const labelY = y1 > textHeight + 4 ? y1 - textHeight - 4 : y2 + 4;
+      const labelX = x1;
+      const labelY = y1 > textHeight + 4 ? y1 - textHeight - 4 : y2 + 4;
 
-          // Draw label background
-          ctx.fillStyle = '#FF0000';
-          ctx.fillRect(labelX - 2, labelY - textHeight + 4, textWidth, textHeight);
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(labelX - 2, labelY - textHeight + 4, textWidth, textHeight);
 
-          // Draw label text
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillText(label, labelX + 2, labelY - 2);
-        }
-      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(label, labelX + 2, labelY - 2);
     }
   };
 
