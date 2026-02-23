@@ -3,14 +3,14 @@ const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-5.onrender.com';
 const BACKEND_BASE =
   import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE;
 
-// ❌ Remove /api because backend does not use it
+// ✅ Backend uses /api prefix
 export const API_BASE = BACKEND_BASE;
 
 export const WS_BASE = BACKEND_BASE.replace(/^http/, 'ws');
 
 // ================= HEALTH =================
 export async function checkHealth() {
-  const response = await fetch(`${API_BASE}/health`);
+  const response = await fetch(`${API_BASE}/api/health`);
 
   if (!response.ok) {
     throw new Error('Backend unavailable');
@@ -24,7 +24,7 @@ export async function uploadVideo(videoFile) {
   const formData = new FormData();
   formData.append('video', videoFile);
 
-  const response = await fetch(`${API_BASE}/predict/video`, {
+  const response = await fetch(`${API_BASE}/api/detections/video`, {
     method: 'POST',
     body: formData
   });
@@ -50,7 +50,7 @@ export async function detectFrame(blob, lat, lng) {
     formData.append('lng', lng);
   }
 
-  const response = await fetch(`${API_BASE}/predict/frame`, {
+  const response = await fetch(`${API_BASE}/api/detections/frame`, {
     method: 'POST',
     body: formData
   });
@@ -67,7 +67,7 @@ export async function detectFrame(blob, lat, lng) {
 // Keeping this so your App.jsx does not break
 export async function fetchHeatmapEvents() {
   try {
-    const response = await fetch(`${API_BASE}/predict/video`);
+    const response = await fetch(`${API_BASE}/api/detections/heatmap`);
 
     if (!response.ok) {
       return [];
