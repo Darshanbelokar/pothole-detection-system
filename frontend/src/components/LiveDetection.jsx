@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { detectFrame } from '../services/api';
 
-const FRAME_WIDTH = 320;
-const FRAME_HEIGHT = 240;
+const FRAME_WIDTH = 640;
+const FRAME_HEIGHT = 480;
 
 export default function LiveDetection({ onEvent }) {
   const videoRef = useRef(null);
@@ -68,14 +68,14 @@ export default function LiveDetection({ onEvent }) {
     inFlightRef.current = true;
 
     try {
-      canvas.width = 320;
-      canvas.height = 240;
+      canvas.width = FRAME_WIDTH;
+      canvas.height = FRAME_HEIGHT;
       const context = canvas.getContext('2d');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const { lat, lng } = locationRef.current;
 
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
       if (!blob) {
         return;
       }
@@ -121,18 +121,29 @@ export default function LiveDetection({ onEvent }) {
       let stream;
       if (deviceId) {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: deviceId } },
+          video: {
+            deviceId: { exact: deviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
           audio: false
         });
       } else {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: mode } },
+            video: {
+              facingMode: { ideal: mode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
             audio: false
           });
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
             audio: false
           });
         }

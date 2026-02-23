@@ -50,3 +50,13 @@ You can tune YOLO inference sensitivity with environment variables:
 - `YOLO_IMGSZ` (default: `960`)
 
 Lower `YOLO_CONF` usually increases detections (and bbox availability), but may add false positives.
+
+## Real-time inference logs
+
+The model service now logs each frame/video inference to stdout.
+On Render, open the model service and go to **Logs** to see live entries like:
+
+- `frame filename=... detected=... confidence=... bbox=... elapsedMs=...`
+- `video filename=... detections=... positives=... elapsedMs=...`
+
+If live camera is running in frontend, you should see frame log lines continuously.

@@ -1,11 +1,15 @@
 import os
 import tempfile
 import time
+import logging
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from ultralytics import YOLO
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("pothole-model")
 
 app = FastAPI()
 model = YOLO("model/best.pt")
@@ -48,8 +52,20 @@ def infer_image_bytes(image_bytes: bytes):
 
 @app.post("/predict/frame")
 async def predict_frame(frame: UploadFile = File(...)):
+    started = time.time()
     image_bytes = await frame.read()
     detected, confidence, bbox = infer_image_bytes(image_bytes)
+    elapsed_ms = int((time.time() - started) * 1000)
+
+    logger.info(
+        "frame filename=%s bytes=%d detected=%s confidence=%.4f bbox=%s elapsedMs=%d",
+        frame.filename,
+        len(image_bytes),
+        detected,
+        confidence,
+        bbox,
+        elapsed_ms,
+    )
 
     return {
         "potholeDetected": detected,
@@ -60,10 +76,12 @@ async def predict_frame(frame: UploadFile = File(...)):
 
 @app.post("/predict/video")
 async def predict_video(video: UploadFile = File(...)):
+    started = time.time()
     suffix = os.path.splitext(video.filename or "upload.mp4")[1] or ".mp4"
+    video_bytes = await video.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
         temp_path = temp_file.name
-        temp_file.write(await video.read())
+        temp_file.write(video_bytes)
 
     detections = []
     cap = cv2.VideoCapture(temp_path)
@@ -114,5 +132,16 @@ async def predict_video(video: UploadFile = File(...)):
         cap.release()
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+    positives = sum(1 for item in detections if item.get("potholeDetected"))
+    elapsed_ms = int((time.time() - started) * 1000)
+    logger.info(
+        "video filename=%s bytes=%d detections=%d positives=%d elapsedMs=%d",
+        video.filename,
+        len(video_bytes),
+        len(detections),
+        positives,
+        elapsed_ms,
+    )
 
     return {"detections": detections}
