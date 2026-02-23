@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-5.onrender.com';
+const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-4.onrender.com';
 
 const BACKEND_BASE =
   import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE;
