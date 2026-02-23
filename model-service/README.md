@@ -40,3 +40,13 @@ If your model runs elsewhere, update:
 - `app.model.base-url`
 - `app.model.frame-endpoint`
 - `app.model.video-endpoint`
+
+## Detection tuning (optional)
+
+You can tune YOLO inference sensitivity with environment variables:
+
+- `YOLO_CONF` (default: `0.15`)
+- `YOLO_IOU` (default: `0.45`)
+- `YOLO_IMGSZ` (default: `960`)
+
+Lower `YOLO_CONF` usually increases detections (and bbox availability), but may add false positives.

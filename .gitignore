@@ -13,3 +13,6 @@ backend/target
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated logs
+logs/

@@ -144,3 +144,39 @@ Example:
 - `http://192.168.1.11:5173/`
 
 If phone cannot open the site, allow Node.js/terminal through Windows Firewall for private networks.
+
+## Detection Logs (PowerShell)
+
+To capture live detection responses into log files:
+
+```powershell
+Set-Location d:\Project\potholes_Detection
+.\tools\log-detections.ps1 -Count 10 -ImagePath images.jpeg -Lat 23.8103 -Lng 90.4125
+```
+
+Generated files (ignored by git) are saved under `logs/`:
+- `detection-log-<timestamp>.jsonl` (one JSON line per request)
+- `detection-log-<timestamp>-summary.txt` (quick positive detection summary)
+
+Optional parameters:
+- `-BackendBaseUrl https://pothole-detection-system-4.onrender.com`
+- `-DelayMs 400`
+- `-OutDir logs`
+
+### Live logs in real time
+
+To stream detection logs continuously while detecting:
+
+```powershell
+Set-Location d:\Project\potholes_Detection
+.\tools\watch-detections-live.ps1 -ImagePath images.jpeg -Lat 23.8103 -Lng 90.4125 -IntervalMs 700
+```
+
+Useful options:
+- `-MaxIterations 20` (run finite loop for testing)
+- `-BackendBaseUrl https://pothole-detection-system-4.onrender.com`
+- `-OutDir logs`
+
+Output:
+- live colored terminal lines (`green` for detected potholes)
+- JSONL log file: `logs/detection-live-<timestamp>.jsonl`

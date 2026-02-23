@@ -9,6 +9,9 @@ from ultralytics import YOLO
 
 app = FastAPI()
 model = YOLO("model/best.pt")
+MODEL_CONF = float(os.getenv("YOLO_CONF", "0.15"))
+MODEL_IOU = float(os.getenv("YOLO_IOU", "0.45"))
+MODEL_IMGSZ = int(os.getenv("YOLO_IMGSZ", "960"))
 
 
 @app.get("/health")
@@ -22,7 +25,13 @@ def infer_image_bytes(image_bytes: bytes):
     if frame is None:
         return False, 0.0, None
 
-    result = model.predict(source=frame, verbose=False)[0]
+    result = model.predict(
+        source=frame,
+        conf=MODEL_CONF,
+        iou=MODEL_IOU,
+        imgsz=MODEL_IMGSZ,
+        verbose=False
+    )[0]
     boxes = result.boxes
 
     if boxes is None or len(boxes) == 0:
@@ -70,7 +79,13 @@ async def predict_video(video: UploadFile = File(...)):
                 break
 
             if frame_index % sample_every == 0:
-                result = model.predict(source=frame, verbose=False)[0]
+                result = model.predict(
+                    source=frame,
+                    conf=MODEL_CONF,
+                    iou=MODEL_IOU,
+                    imgsz=MODEL_IMGSZ,
+                    verbose=False
+                )[0]
                 boxes = result.boxes
 
                 if boxes is not None and len(boxes) > 0:

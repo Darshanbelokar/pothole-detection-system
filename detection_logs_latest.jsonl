@@ -1,0 +1,4 @@
+{"id":"44bc4c14-bbb5-4075-a9a2-46f26565fdff","timestamp":1771863886000,"potholeDetected":true,"confidence":0.7932,"severity":"medium","bbox":[0,97,300,168],"latitude":23.8103,"longitude":90.4125}
+{"id":"618ee112-64e2-4d93-9099-ff1721acac55","timestamp":1771863951301,"potholeDetected":true,"confidence":0.7932,"severity":"medium","bbox":[0,97,300,168],"latitude":23.8103,"longitude":90.4125}
+{"id":"cb4c6297-b078-473b-a330-4f448e986585","timestamp":1771864015003,"potholeDetected":true,"confidence":0.7932,"severity":"medium","bbox":[0,97,300,168],"latitude":23.8103,"longitude":90.4125}
+{"id":"ea83502d-2d1e-484c-989b-3f621ef3912c","timestamp":1771864048646,"potholeDetected":false,"confidence":0.129,"severity":"low","bbox":null,"latitude":23.8103,"longitude":90.4125}

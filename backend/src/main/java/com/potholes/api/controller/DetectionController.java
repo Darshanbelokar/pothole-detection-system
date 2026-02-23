@@ -43,7 +43,7 @@ public class DetectionController {
     public ResponseEntity<DetectionEvent> detectFromFrame(
             @RequestParam("frame") @NotNull MultipartFile frame,
             @RequestParam(value = "lat", required = false) Double latitude,
-            @RequestParam(value = "lng", required = false) Double longitude
+            @RequestParam(value = "lng", required = false) Double   longitude
     ) throws IOException {
         return ResponseEntity.ok(detectionService.analyzeFrame(frame, latitude, longitude));
     }
