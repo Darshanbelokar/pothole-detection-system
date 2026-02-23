@@ -4,6 +4,7 @@ import com.potholes.api.model.ModelFrameResponse;
 import com.potholes.api.model.ModelVideoResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,10 +19,20 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Component
 public class ModelInferenceClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public ModelInferenceClient() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(5000);
+        requestFactory.setReadTimeout(10000);
+        this.restTemplate = new RestTemplate(requestFactory);
+    }
 
     @Value("${app.model.base-url:http://localhost:8000}")
     private String baseUrl;
+
+    @Value("${app.model.backup-base-url:https://soothing-luck-production.up.railway.app}")
+    private String backupBaseUrl;
 
     @Value("${app.model.frame-endpoint:/predict/frame}")
     private String frameEndpoint;
@@ -37,17 +48,13 @@ public class ModelInferenceClient {
         body.add("frame", asNamedResource(frameBytes, "frame.jpg"));
 
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl).path(frameEndpoint).toUriString();
-
         try {
-            ResponseEntity<ModelFrameResponse> response = restTemplate.postForEntity(url, request, ModelFrameResponse.class);
-            ModelFrameResponse payload = response.getBody();
-            if (payload == null) {
-                throw new IllegalStateException("Model frame response is empty");
+            return executeFrameInference(baseUrl, request);
+        } catch (RuntimeException ex) {
+            if (backupBaseUrl != null && !backupBaseUrl.isBlank() && !backupBaseUrl.equals(baseUrl)) {
+                return executeFrameInference(backupBaseUrl, request);
             }
-            return payload;
-        } catch (RestClientException ex) {
-            throw new IllegalStateException("Model frame inference failed: " + ex.getMessage(), ex);
+            throw ex;
         }
     }
 
@@ -59,7 +66,33 @@ public class ModelInferenceClient {
         body.add("video", asNamedResource(videoBytes, "upload.mp4"));
 
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl).path(videoEndpoint).toUriString();
+        try {
+            return executeVideoInference(baseUrl, request);
+        } catch (RuntimeException ex) {
+            if (backupBaseUrl != null && !backupBaseUrl.isBlank() && !backupBaseUrl.equals(baseUrl)) {
+                return executeVideoInference(backupBaseUrl, request);
+            }
+            throw ex;
+        }
+    }
+
+    private ModelFrameResponse executeFrameInference(String currentBaseUrl, HttpEntity<MultiValueMap<String, Object>> request) {
+        String url = UriComponentsBuilder.fromHttpUrl(currentBaseUrl).path(frameEndpoint).toUriString();
+
+        try {
+            ResponseEntity<ModelFrameResponse> response = restTemplate.postForEntity(url, request, ModelFrameResponse.class);
+            ModelFrameResponse payload = response.getBody();
+            if (payload == null) {
+                throw new IllegalStateException("Model frame response is empty");
+            }
+            return payload;
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("Model frame inference failed at " + currentBaseUrl + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    private ModelVideoResponse executeVideoInference(String currentBaseUrl, HttpEntity<MultiValueMap<String, Object>> request) {
+        String url = UriComponentsBuilder.fromHttpUrl(currentBaseUrl).path(videoEndpoint).toUriString();
 
         try {
             ResponseEntity<ModelVideoResponse> response = restTemplate.postForEntity(url, request, ModelVideoResponse.class);
@@ -69,7 +102,7 @@ public class ModelInferenceClient {
             }
             return payload;
         } catch (RestClientException ex) {
-            throw new IllegalStateException("Model video inference failed: " + ex.getMessage(), ex);
+            throw new IllegalStateException("Model video inference failed at " + currentBaseUrl + ": " + ex.getMessage(), ex);
         }
     }
 

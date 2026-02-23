@@ -409,6 +409,8 @@ export default function LiveDetection({ onEvent }) {
           </p>
           <p><strong>Confidence:</strong> {(latest.confidence * 100).toFixed(1)}%</p>
           <p><strong>Lat/Lng:</strong> {latest.latitude ?? '-'}, {latest.longitude ?? '-'}</p>
+          <p><strong>Source:</strong> {latest.detectionSource ?? 'backend'}</p>
+          <p><strong>BBox:</strong> {latest.bbox ? JSON.stringify(latest.bbox) : 'null'}</p>
         </div>
       )}
     </section>

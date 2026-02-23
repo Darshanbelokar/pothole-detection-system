@@ -66,7 +66,10 @@ export async function detectFrame(blob, lat, lng) {
   const backendMessage = await response.json();
 
   if (backendMessage?.bbox) {
-    return backendMessage;
+    return {
+      ...backendMessage,
+      detectionSource: 'backend'
+    };
   }
 
   try {
@@ -83,17 +86,24 @@ export async function detectFrame(blob, lat, lng) {
 
     const directMessage = await directResponse.json();
     if (!directMessage?.bbox) {
-      return backendMessage;
+      return {
+        ...backendMessage,
+        detectionSource: 'backend-no-bbox'
+      };
     }
 
     return {
       ...backendMessage,
       potholeDetected: directMessage.potholeDetected ?? backendMessage.potholeDetected,
       confidence: directMessage.confidence ?? backendMessage.confidence,
-      bbox: directMessage.bbox
+      bbox: directMessage.bbox,
+      detectionSource: 'model-direct'
     };
   } catch {
-    return backendMessage;
+    return {
+      ...backendMessage,
+      detectionSource: 'backend-fallback'
+    };
   }
 }
 
