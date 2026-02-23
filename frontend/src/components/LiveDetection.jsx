@@ -336,6 +336,27 @@ export default function LiveDetection({ onEvent }) {
   };
 
   const cameraLabel = cameraMode === 'environment' ? 'Rear' : 'Front';
+  const latestNormalizedBbox = normalizeBbox(latest?.bbox);
+  const hasLatestBbox = Array.isArray(latestNormalizedBbox);
+
+  const getLatestBboxStyle = () => {
+    if (!hasLatestBbox) {
+      return null;
+    }
+
+    const [x1, y1, x2, y2] = latestNormalizedBbox;
+    const left = Math.max(0, (x1 / FRAME_WIDTH) * 100);
+    const top = Math.max(0, (y1 / FRAME_HEIGHT) * 100);
+    const width = Math.max(0, ((x2 - x1) / FRAME_WIDTH) * 100);
+    const height = Math.max(0, ((y2 - y1) / FRAME_HEIGHT) * 100);
+
+    return {
+      left: `${left}%`,
+      top: `${top}%`,
+      width: `${width}%`,
+      height: `${height}%`
+    };
+  };
 
   return (
     <section className="card">
@@ -363,6 +384,9 @@ export default function LiveDetection({ onEvent }) {
           <div className="feed-label">🎯 Detection Output (with Bounding Boxes)</div>
           <div className="camera-stage">
             <canvas ref={displayCanvasRef} className="camera-view" />
+            {hasLatestBbox && (
+              <div className="bbox-overlay" style={getLatestBboxStyle()} />
+            )}
             {!running && (
               <div className="no-feed-overlay">
                 <p>Start live detection to see predicted objects</p>
