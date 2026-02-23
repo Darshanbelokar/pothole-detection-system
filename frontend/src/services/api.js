@@ -1,7 +1,10 @@
 const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-4.onrender.com';
+const DEFAULT_MODEL_BASE = 'https://soothing-luck-production.up.railway.app';
 
 const BACKEND_BASE =
   import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE;
+const MODEL_BASE =
+  import.meta.env.VITE_MODEL_BASE_URL || DEFAULT_MODEL_BASE;
 
 // ✅ Backend uses /api prefix
 export const API_BASE = BACKEND_BASE;
@@ -60,7 +63,38 @@ export async function detectFrame(blob, lat, lng) {
     throw new Error(text || 'Live detection failed');
   }
 
-  return response.json();
+  const backendMessage = await response.json();
+
+  if (backendMessage?.bbox) {
+    return backendMessage;
+  }
+
+  try {
+    const directForm = new FormData();
+    directForm.append('frame', blob, 'frame.jpg');
+    const directResponse = await fetch(`${MODEL_BASE}/predict/frame`, {
+      method: 'POST',
+      body: directForm
+    });
+
+    if (!directResponse.ok) {
+      return backendMessage;
+    }
+
+    const directMessage = await directResponse.json();
+    if (!directMessage?.bbox) {
+      return backendMessage;
+    }
+
+    return {
+      ...backendMessage,
+      potholeDetected: directMessage.potholeDetected ?? backendMessage.potholeDetected,
+      confidence: directMessage.confidence ?? backendMessage.confidence,
+      bbox: directMessage.bbox
+    };
+  } catch {
+    return backendMessage;
+  }
 }
 
 // ================= HEATMAP =================

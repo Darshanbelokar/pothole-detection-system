@@ -6,12 +6,21 @@ import logging
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("pothole-model")
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 model = YOLO("model/best.pt")
 MODEL_CONF = float(os.getenv("YOLO_CONF", "0.15"))
 MODEL_IOU = float(os.getenv("YOLO_IOU", "0.45"))
