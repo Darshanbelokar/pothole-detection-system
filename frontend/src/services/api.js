@@ -1,10 +1,9 @@
-// Use your latest Render URL (IMPORTANT: use -5 not -4)
 const DEFAULT_BACKEND_BASE = 'https://pothole-detection-system-5.onrender.com';
 
 const BACKEND_BASE =
   import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE;
 
-// ❌ REMOVE /api (your backend does not use /api prefix)
+// ❌ Remove /api because backend does not use it
 export const API_BASE = BACKEND_BASE;
 
 export const WS_BASE = BACKEND_BASE.replace(/^http/, 'ws');
@@ -62,4 +61,20 @@ export async function detectFrame(blob, lat, lng) {
   }
 
   return response.json();
+}
+
+// ================= HEATMAP =================
+// Keeping this so your App.jsx does not break
+export async function fetchHeatmapEvents() {
+  try {
+    const response = await fetch(`${API_BASE}/predict/video`);
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return response.json();
+  } catch (err) {
+    return [];
+  }
 }
